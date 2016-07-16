@@ -14,7 +14,7 @@
 
 
 # 测试代码
-         // master-name列表
+         // sentinel配置文件中的master-name列表
         List<String> masters = new ArrayList<String>();
         masters.add("master1");
         masters.add("master2");
