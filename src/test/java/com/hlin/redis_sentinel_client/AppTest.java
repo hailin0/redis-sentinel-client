@@ -46,16 +46,21 @@ public class AppTest {
     }
 
     public static ShardedJedisSentinelPool init() {
+
+        // master-name列表
         List<String> masters = new ArrayList<String>();
         masters.add("master1");
         masters.add("master2");
 
+        // sentinel集群列表
         Set<String> sentinels = new HashSet<String>();
         sentinels.add("192.168.1.112:26379");
 
+        // 初始化连接池
         ShardedJedisSentinelPool pool = new ShardedJedisSentinelPool(masters, sentinels);
 
         System.out.println("init ShardedJedisSentinelPool success...");
+
         return pool;
     }
 
