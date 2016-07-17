@@ -1,6 +1,6 @@
 
 # redis-sentinel-client
-  redis-sentinel(哨兵)模式的分片连接池，提供与ShardedJedisPool一样的API，并根据sentinel集群的master变更自动切换主从。
+  redis-sentinel(哨兵)模式的分片连接池，根据sentinel集群的master变更自动切换主从，并提供与ShardedJedisPool一样的API。
 
 
 # 简述
