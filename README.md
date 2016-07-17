@@ -15,8 +15,8 @@ ShardedJedisSentinelPool.java就是在JedisSentinelPool.java的基础上，增�
   ShardedJedisSentinelPool.java的实现思路参考jedis包JedisSentinelPool.java，池需要配置sentinel集群地址以及
   sentinel集群中的master-name，然后初始化时根据sentinel提供的api去请求master-name当前对应的ip和端口，
   然后与普通的jedispool初始化一样，拿着请求回来的ip和端口初始化pool并保存在池中的map（本地路由表）。
-  同时也根据sentinel的数量启动对应的后台线程，去订阅sentinel集群的master变更消息，收到变更消息
-  就重新初始化ShardedJedisSentinelPool.java中的连接。
+  同时也根据sentinel的数量启动对应的后台线程，去订阅sentinel集群的master变更消息，收到变更消息之后与
+  本地路由表对比排除无用的消息，然后开始重新初始化ShardedJedisSentinelPool.java中的连接。
 
 
 # 测试代码
