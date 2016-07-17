@@ -33,3 +33,9 @@
 <a href="https://github.com/hailin0/redis-sentinel-client/blob/master/src/main/java/redis/clients/jedis/JedisSentinelPool.java">单实例连接池-JedisSentinelPool.java</a>
 <br>
 <a href="https://github.com/hailin0/redis-sentinel-client/blob/master/src/main/java/redis/clients/jedis/ShardedJedisSentinelPool.java">分片连接池-ShardedJedisSentinelPool.java</a>
+
+
+# 参考资料
+<a href="http://doc.redisfans.com/topic/sentinel.html">Sentinel官方文档</a>
+<br>
+<a href="http://blog.csdn.net/wtyvhreal/article/details/46517483">Sentinel集群搭建过程</a>
