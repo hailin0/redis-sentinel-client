@@ -27,7 +27,7 @@ import redis.clients.util.Pool;
  * "sentinel" 模式,分片连接池
  * 
  * 
- * @author hailin1.wang@yeah.net
+ * @author hailin0@yeah.net
  * @createDate 2016年7月15日
  * 
  */
@@ -353,7 +353,7 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
      * 
      * master监听器，从sentinel订阅master变更的消息
      * 
-     * @author hailin1.wang@downjoy.com
+     * @author hailin0@yeah.net
      * @createDate 2016年7月15日
      * 
      */
@@ -424,7 +424,7 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
      * 
      * 当master变更时接收消息处理
      * 
-     * @author hailin1.wang@downjoy.com
+     * @author hailin0@yeah.net
      * @createDate 2016年7月15日
      * 
      */
@@ -516,7 +516,7 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
      * 
      * ShardedJedis生产工厂
      * 
-     * @author hailin1.wang@downjoy.com
+     * @author hailin0@yeah.net
      * @createDate 2016年7月15日
      * 
      */
