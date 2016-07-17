@@ -55,6 +55,7 @@ public class AppTest {
         // sentinel集群列表
         Set<String> sentinels = new HashSet<String>();
         sentinels.add("192.168.1.112:26379");
+        sentinels.add("192.168.1.112:26380");
 
         // 初始化连接池
         ShardedJedisSentinelPool pool = new ShardedJedisSentinelPool(masters, sentinels);
@@ -65,12 +66,14 @@ public class AppTest {
     }
 
     public static void set(String key, String value) {
+        ShardedJedis resource = null;
         try {
-            ShardedJedis resource = pool.getResource();
+            resource = pool.getResource();
             resource.set(key, value);
-            resource.close();
         } catch (Exception e) {
             e.printStackTrace();
+        } finally {
+            close(resource);
         }
     }
 
@@ -83,8 +86,22 @@ public class AppTest {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            resource.close();
+            close(resource);
         }
         return string;
+    }
+
+    /**
+     * 注意，此方法需要try-catch，因为当master发生变更后，监控线程会重新初始化连接池中的连接，造成resource.close抛错
+     */
+    public static void close(ShardedJedis resource) {
+        if (null == resource) {
+            return;
+        }
+        try {
+            resource.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

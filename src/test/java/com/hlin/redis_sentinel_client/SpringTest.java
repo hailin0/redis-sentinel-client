@@ -57,12 +57,14 @@ public class SpringTest {
     }
 
     public static void set(String key, String value) {
+        ShardedJedis resource = null;
         try {
-            ShardedJedis resource = pool.getResource();
+            resource = pool.getResource();
             resource.set(key, value);
-            resource.close();
         } catch (Exception e) {
             e.printStackTrace();
+        } finally {
+            close(resource);
         }
     }
 
@@ -75,8 +77,22 @@ public class SpringTest {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            resource.close();
+            close(resource);
         }
         return string;
+    }
+
+    /**
+     * 注意，此方法需要try-catch，因为当master发生变更后，监控线程会重新初始化连接池中的连接，造成resource.close抛错
+     */
+    public static void close(ShardedJedis resource) {
+        if (null == resource) {
+            return;
+        }
+        try {
+            resource.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

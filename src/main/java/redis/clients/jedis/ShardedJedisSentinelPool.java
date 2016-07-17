@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -52,7 +53,7 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
      * 本地master路由表
      * 
      */
-    private volatile Map<String, HostAndPort> localMasterRoutingTable;
+    private volatile Map<String, HostAndPort> localMasterRoutingTable = new ConcurrentHashMap<String, HostAndPort>();
 
     /**
      * 从sentinel获取master地址出错的重试次数
@@ -113,7 +114,8 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
         if (!equals(localMasterRoutingTable, newMasterRoutingTable)) {
             List<JedisShardInfo> shardMasters = makeShardInfoList(newMasterRoutingTable);
             initPool(poolConfig, new ShardedJedisFactory(shardMasters, Hashing.MURMUR_HASH, null));
-            localMasterRoutingTable = newMasterRoutingTable;
+            localMasterRoutingTable.putAll(newMasterRoutingTable);
+            ;
         }
     }
 
@@ -385,9 +387,10 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
         public void run() {
             running.set(true);
             while (running.get()) {
-                j = new Jedis(host, port);
+                // Sentinel可能发生宕机，因此try-catch这一步是必须的.
                 try {
-                    // 订阅变更
+                    j = new Jedis(host, port);
+                    // 订阅master变更消息
                     j.subscribe(new MasterChengeProcessor(this.masters, this.host, this.port),
                             "+switch-master");
                 } catch (JedisConnectionException e) {
@@ -419,6 +422,11 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
             }
         }
     }
+
+    /**
+     * master变更时初始化连接池更新锁
+     */
+    private static final ConcurrentHashMap<String, HostAndPort> updatePoolLock = new ConcurrentHashMap<String, HostAndPort>();
 
     /**
      * 
@@ -468,47 +476,95 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
              */
             log.fine("Sentinel " + host + ":" + port + " published: " + message + ".");
             String[] switchMasterMsg = message.split(" ");
-
             if (switchMasterMsg.length > 3) {
 
-                int index = masters.indexOf(switchMasterMsg[0]);
-                /**
-                 * 因sentinel集群能同时管理多组master-slave,故只处理当前工程配置的master变更
-                 * <p>
-                 * 所以当前变更的master（switchMasterMsg[0]）必须是被包含在工程配置的masters中。
-                 * 
-                 */
-                if (index != -1) {
-                    HostAndPort newHostMaster = toHostAndPort(Arrays.asList(switchMasterMsg[3],
-                            switchMasterMsg[4]));
-                    HostAndPort oldhostAndPort = localMasterRoutingTable.get(switchMasterMsg[0]);
-                    
-                    //如果比变更的master信息与本地路由表中的信息一致则为消息重复
-                    if (newHostMaster.getHost().equals(oldhostAndPort.getHost())
-                            && newHostMaster.getPort() == oldhostAndPort.getPort()) {
-                        return;
-                    }
-                    // 拷贝本地路由表
-                    Map<String, HostAndPort> newMasterRoutingTable = new LinkedHashMap<String, HostAndPort>(
-                            localMasterRoutingTable);
-                    // 设置变更信息
-                    newMasterRoutingTable.put(switchMasterMsg[0], newHostMaster);
+                String chengeMasterName = switchMasterMsg[0];
+                HostAndPort newHostMaster = toHostAndPort(Arrays.asList(switchMasterMsg[3],
+                        switchMasterMsg[4]));
+                boolean lock = lock(chengeMasterName, newHostMaster);
+                try {
+                    if (lock) {
+                        // 拷贝本地路由表
+                        Map<String, HostAndPort> newMasterRoutingTable = new LinkedHashMap<String, HostAndPort>(
+                                localMasterRoutingTable);
+                        // 设置变更信息
+                        newMasterRoutingTable.put(chengeMasterName, newHostMaster);
 
-                    // 重新初始化整个pool
-                    initPool(newMasterRoutingTable);
-                } else {
-                    StringBuilder info = new StringBuilder();
-                    for (String masterName : masters) {
-                        info.append(masterName);
-                        info.append(",");
+                        log.info("Sentinel " + host + ":" + port + " start update...");
+                        // 防止二次更新
+                        synchronized (MasterChengeProcessor.class) {
+                            // 重新初始化pool
+                            initPool(newMasterRoutingTable);
+                        }
+                    } else {
+                        StringBuilder info = new StringBuilder();
+                        for (String masterName : masters) {
+                            info.append(masterName);
+                            info.append(",");
+                        }
+                        log.fine("Ignoring message on +switch-master for master name "
+                                + switchMasterMsg[0] + ", our monitor master name are [" + info
+                                + "]");
                     }
-                    log.fine("Ignoring message on +switch-master for master name "
-                            + switchMasterMsg[0] + ", our monitor master name are [" + info + "]");
+                } finally {
+                    if (lock) {
+                        unLock(chengeMasterName, newHostMaster);
+                    }
                 }
             } else {
                 log.severe("Invalid message received on Sentinel " + host + ":" + port
                         + " on channel +switch-master: " + message);
             }
+        }
+
+        /**
+         * 1.因sentinel集群能同时管理多组master-slave,故只处理当前工程配置的master变更
+         * <p>
+         * 2.如果变更的master信息已存在，并且对应ip一致，则为重复消息（放弃更新）
+         * <p>
+         * 3.如果变更的master信息已存在，不一致则为master变更（lock）
+         * <p>
+         * 
+         * @param chengeMasterName 变更的master-name
+         * @param newHostMaster 新的master地址
+         * @return
+         */
+        private boolean lock(String chengeMasterName, HostAndPort newHostMaster) {
+            int index = masters.indexOf(chengeMasterName);
+            if (index == -1) {
+                return false;
+            }
+
+            HostAndPort currentHostAndPort = localMasterRoutingTable.get(chengeMasterName);
+            if (newHostMaster.equals(currentHostAndPort)) {
+                log.info("Sentinel " + host + ":" + port + " update " + chengeMasterName
+                        + " failure! because Has been updated.");
+                return false;
+            }
+
+            String key = String.format("%s-%s", chengeMasterName, newHostMaster);
+            HostAndPort putIfAbsent = updatePoolLock.putIfAbsent(key, newHostMaster);
+            if (null != putIfAbsent && newHostMaster.equals(putIfAbsent)) {
+                log.info("Sentinel " + host + ":" + port + " lock " + chengeMasterName
+                        + " failure! because Has been lock.");
+                return false;
+            }
+
+            log.info("Sentinel " + host + ":" + port + " lock " + chengeMasterName
+                    + " success! key:" + key);
+            return true;
+        }
+
+        /**
+         * 解除锁定
+         * 
+         * @param chengeMasterName
+         * @param newHostMaster
+         */
+        private void unLock(String chengeMasterName, HostAndPort newHostMaster) {
+            String key = String.format("%s-%s", chengeMasterName, newHostMaster);
+            updatePoolLock.remove(key);
+            log.info("Sentinel " + host + ":" + port + " unlock " + chengeMasterName + " success.");
         }
     }
 
