@@ -46,7 +46,7 @@ public class SpringTest {
     }
 
     public static ShardedJedisSentinelPool init() {
-
+        // 初始化连接池
         BeanFactory bf = new XmlBeanFactory(new ClassPathResource("applicationContext.xml"));
         ShardedJedisSentinelPool pool = bf.getBean("shardedJedisSentinelPool",
                 ShardedJedisSentinelPool.class);

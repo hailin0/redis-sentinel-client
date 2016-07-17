@@ -178,10 +178,9 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
             Map<String, HostAndPort> newMasterRoutingTable) {
         if (localMasterRoutingTable != null && newMasterRoutingTable != null) {
             if (localMasterRoutingTable.size() == newMasterRoutingTable.size()) {
-                List<HostAndPort> localMasterValue = toHostAndPort(localMasterRoutingTable);
-                List<HostAndPort> newmasterValue = toHostAndPort(newMasterRoutingTable);
-                for (int i = 0, len = newmasterValue.size(); i < len; i++) {
-                    if (!localMasterValue.get(i).equals(newmasterValue.get(i))) {
+                Set<String> keySet = newMasterRoutingTable.keySet();
+                for (String key : keySet) {
+                    if (!localMasterRoutingTable.get(key).equals(newMasterRoutingTable.get(key))) {
                         return false;
                     }
                 }
@@ -234,7 +233,7 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
             /**
              * 这个里带上master-name(entry.getKey())作为JedisShardInfo的name
              * <p>
-             * 以便同一个master一致性hash时落在相同的点上,详情可参考
+             * 以便同一个master一致性hash时落在相同的点上,详情可参考redis.clients.util.Sharded.getShard(String key)
              */
             JedisShardInfo jedisShardInfo = new JedisShardInfo(entry.getValue().getHost(), entry
                     .getValue().getPort(), soTimeout, entry.getKey());
@@ -476,15 +475,22 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
                 /**
                  * 因sentinel集群能同时管理多组master-slave,故只处理当前工程配置的master变更
                  * <p>
-                 * 当前变更的master（switchMasterMsg[0]）必须是被包含在工程配置中。
+                 * 所以当前变更的master（switchMasterMsg[0]）必须是被包含在工程配置的masters中。
                  * 
                  */
                 if (index != -1) {
                     HostAndPort newHostMaster = toHostAndPort(Arrays.asList(switchMasterMsg[3],
                             switchMasterMsg[4]));
-                    Map<String, HostAndPort> newMasterRoutingTable = new LinkedHashMap<String, HostAndPort>();
-                    // 拷贝原有的本地路由表
-                    newMasterRoutingTable.putAll(localMasterRoutingTable);
+                    HostAndPort oldhostAndPort = localMasterRoutingTable.get(switchMasterMsg[0]);
+                    
+                    //如果比变更的master信息与本地路由表中的信息一致则为消息重复
+                    if (newHostMaster.getHost().equals(oldhostAndPort.getHost())
+                            && newHostMaster.getPort() == oldhostAndPort.getPort()) {
+                        return;
+                    }
+                    // 拷贝本地路由表
+                    Map<String, HostAndPort> newMasterRoutingTable = new LinkedHashMap<String, HostAndPort>(
+                            localMasterRoutingTable);
                     // 设置变更信息
                     newMasterRoutingTable.put(switchMasterMsg[0], newHostMaster);
 

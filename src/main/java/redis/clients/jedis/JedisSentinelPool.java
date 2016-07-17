@@ -16,7 +16,7 @@ import redis.clients.util.Pool;
 
 /**
  * 
- * 注：此代码为jedis自带的单机pool，这里把代码拷贝出来仅供实现分片时的参考。
+ * 注：此代码为jedis自带的单实例pool，这里把代码拷贝出来仅供实现分片时的参考。
  * 
  * @author hailin0@yeah.net
  * @createDate 2016年7月17日
