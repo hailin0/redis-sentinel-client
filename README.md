@@ -41,13 +41,11 @@ ShardedJedisSentinelPool.java就是在JedisSentinelPool.java的基础上，增�
 <a href="https://github.com/hailin0/redis-sentinel-client/blob/master/src/main/java/redis/clients/jedis/ShardedJedisSentinelPool.java">分片连接池-ShardedJedisSentinelPool.java</a>
 
 
-# 注意
-调用ShardedJedis.close()方法需要try-catch，因为当master发生变更后，监控线程会重新初始化连接池中的连接，造成异常。
-
-
 
 # 参考资料
 <a href="http://doc.redisfans.com/topic/sentinel.html">Sentinel官方文档</a>
 <br>
 <a href="http://blog.csdn.net/wtyvhreal/article/details/46517483">Sentinel集群搭建过程</a>
 
+# 注意
+调用ShardedJedis.close()方法需要try-catch，因为当master发生变更后，监控线程会重新初始化连接池中的连接，造成异常。
