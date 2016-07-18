@@ -115,7 +115,6 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
             List<JedisShardInfo> shardMasters = makeShardInfoList(newMasterRoute);
             initPool(poolConfig, new ShardedJedisFactory(shardMasters, Hashing.MURMUR_HASH, null));
             localMasterRoute.putAll(newMasterRoute);
-            ;
         }
     }
 
