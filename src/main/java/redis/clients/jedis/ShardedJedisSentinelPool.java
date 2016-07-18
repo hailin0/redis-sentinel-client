@@ -53,7 +53,7 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
      * 本地master路由表
      * 
      */
-    private volatile Map<String, HostAndPort> localMasterRoutingTable = new ConcurrentHashMap<String, HostAndPort>();
+    private volatile Map<String, HostAndPort> localMasterRoute = new ConcurrentHashMap<String, HostAndPort>();
 
     /**
      * 从sentinel获取master地址出错的重试次数
@@ -101,20 +101,20 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
         this.database = database;
         this.masterListeners = new HashSet<MasterListener>(sentinels.size());
 
-        Map<String, HostAndPort> newMasterRoutingTable = initSentinels(sentinels, masters);
-        initPool(newMasterRoutingTable);
+        Map<String, HostAndPort> newMasterRoute = initSentinels(sentinels, masters);
+        initPool(newMasterRoute);
     }
 
     /**
-     * 根据newMasterRoutingTable路由表信息初始化连接池
+     * 根据newMasterRoute路由表信息初始化连接池
      * 
-     * @param newMasterRoutingTable
+     * @param newMasterRoute
      */
-    private void initPool(Map<String, HostAndPort> newMasterRoutingTable) {
-        if (!equals(localMasterRoutingTable, newMasterRoutingTable)) {
-            List<JedisShardInfo> shardMasters = makeShardInfoList(newMasterRoutingTable);
+    private void initPool(Map<String, HostAndPort> newMasterRoute) {
+        if (!equals(localMasterRoute, newMasterRoute)) {
+            List<JedisShardInfo> shardMasters = makeShardInfoList(newMasterRoute);
             initPool(poolConfig, new ShardedJedisFactory(shardMasters, Hashing.MURMUR_HASH, null));
-            localMasterRoutingTable.putAll(newMasterRoutingTable);
+            localMasterRoute.putAll(newMasterRoute);
             ;
         }
     }
@@ -172,17 +172,17 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
     /**
      * 本地路由表与新路由表对比
      * 
-     * @param localMasterRoutingTable
-     * @param masterRoutingTable
+     * @param localMasterRoute
+     * @param MasterRoute
      * @return
      */
-    private boolean equals(Map<String, HostAndPort> localMasterRoutingTable,
-            Map<String, HostAndPort> newMasterRoutingTable) {
-        if (localMasterRoutingTable != null && newMasterRoutingTable != null) {
-            if (localMasterRoutingTable.size() == newMasterRoutingTable.size()) {
-                Set<String> keySet = newMasterRoutingTable.keySet();
+    private boolean equals(Map<String, HostAndPort> localMasterRoute,
+            Map<String, HostAndPort> newMasterRoute) {
+        if (localMasterRoute != null && newMasterRoute != null) {
+            if (localMasterRoute.size() == newMasterRoute.size()) {
+                Set<String> keySet = newMasterRoute.keySet();
                 for (String key : keySet) {
-                    if (!localMasterRoutingTable.get(key).equals(newMasterRoutingTable.get(key))) {
+                    if (!localMasterRoute.get(key).equals(newMasterRoute.get(key))) {
                         return false;
                     }
                 }
@@ -198,7 +198,7 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
      * @return
      */
     private List<HostAndPort> getCurrentHostMaster() {
-        return toHostAndPort(localMasterRoutingTable);
+        return toHostAndPort(localMasterRoute);
     }
 
     /**
@@ -224,12 +224,12 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
     /**
      * 构造JedisShardInfo
      * 
-     * @param newMasterRoutingTable
+     * @param newMasterRoute
      * @return
      */
-    private List<JedisShardInfo> makeShardInfoList(Map<String, HostAndPort> newMasterRoutingTable) {
+    private List<JedisShardInfo> makeShardInfoList(Map<String, HostAndPort> newMasterRoute) {
         List<JedisShardInfo> shardMasters = new ArrayList<JedisShardInfo>();
-        Set<Entry<String, HostAndPort>> entrySet = newMasterRoutingTable.entrySet();
+        Set<Entry<String, HostAndPort>> entrySet = newMasterRoute.entrySet();
         StringBuilder info = new StringBuilder();
         for (Entry<String, HostAndPort> entry : entrySet) {
             /**
@@ -262,10 +262,10 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
 
         log.info("Trying to find all master from available Sentinels...");
 
-        Map<String, HostAndPort> masterRoutingTable = new LinkedHashMap<String, HostAndPort>();
+        Map<String, HostAndPort> MasterRoute = new LinkedHashMap<String, HostAndPort>();
 
         for (String masterName : masters) {
-            HostAndPort master = masterRoutingTable.get(masterName);
+            HostAndPort master = MasterRoute.get(masterName);
             // 当前master已初始化
             if (null != master) {
                 continue;
@@ -298,7 +298,7 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
                         master = toHostAndPort(masterAddr);
                         log.fine("Found Redis master at " + master);
 
-                        masterRoutingTable.put(masterName, master);
+                        MasterRoute.put(masterName, master);
                         fetched = true;
                         jedis.disconnect();
                         break;
@@ -336,7 +336,7 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
             }
         }
 
-        log.info("Redis master running at " + masterRoutingTable.size()
+        log.info("Redis master running at " + MasterRoute.size()
                 + ", starting Sentinel listeners...");
         for (String sentinel : sentinels) {
             final HostAndPort hap = toHostAndPort(Arrays.asList(sentinel.split(":")));
@@ -348,7 +348,7 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
             masterListener.start();
         }
 
-        return masterRoutingTable;
+        return MasterRoute;
     }
 
     /**
@@ -421,12 +421,14 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
                 log.log(Level.SEVERE, "Caught exception while shutting down: ", e);
             }
         }
+        
+        
     }
 
     /**
      * master变更时初始化连接池更新锁
      */
-    private static final ConcurrentHashMap<String, HostAndPort> updatePoolLock = new ConcurrentHashMap<String, HostAndPort>();
+    private  ConcurrentHashMap<String, HostAndPort> updatePoolLock = new ConcurrentHashMap<String, HostAndPort>();
 
     /**
      * 
@@ -485,16 +487,16 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
                 try {
                     if (lock) {
                         // 拷贝本地路由表
-                        Map<String, HostAndPort> newMasterRoutingTable = new LinkedHashMap<String, HostAndPort>(
-                                localMasterRoutingTable);
+                        Map<String, HostAndPort> newMasterRoute = new LinkedHashMap<String, HostAndPort>(
+                                localMasterRoute);
                         // 设置变更信息
-                        newMasterRoutingTable.put(chengeMasterName, newHostMaster);
+                        newMasterRoute.put(chengeMasterName, newHostMaster);
 
                         log.info("Sentinel " + host + ":" + port + " start update...");
                         // 防止二次更新
                         synchronized (MasterChengeProcessor.class) {
                             // 重新初始化pool
-                            initPool(newMasterRoutingTable);
+                            initPool(newMasterRoute);
                         }
                     } else {
                         StringBuilder info = new StringBuilder();
@@ -535,7 +537,7 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
                 return false;
             }
 
-            HostAndPort currentHostAndPort = localMasterRoutingTable.get(chengeMasterName);
+            HostAndPort currentHostAndPort = localMasterRoute.get(chengeMasterName);
             if (newHostMaster.equals(currentHostAndPort)) {
                 log.info("Sentinel " + host + ":" + port + " update " + chengeMasterName
                         + " failure! because Has been updated.");
