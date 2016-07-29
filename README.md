@@ -48,4 +48,6 @@ ShardedJedisSentinelPool.java就是在JedisSentinelPool.java的基础上，增�
 <a href="http://blog.csdn.net/wtyvhreal/article/details/46517483">Sentinel集群搭建过程</a>
 
 # 注意
-调用ShardedJedis.close()方法需要try-catch，因为当master发生变更后，监控线程会重新初始化连接池中的连接，造成异常。
+1.调用ShardedJedis.close()方法需要try-catch，因为当master发生变更后，监控线程会重新初始化连接池中的连接，造成异常。
+2.JedisSentinelPool.java最好不要使用，有重复接收master变更消息，造成pool多次初始化的bug。
+使用ShardedJedisSentinelPool.java就可以满足需求了
