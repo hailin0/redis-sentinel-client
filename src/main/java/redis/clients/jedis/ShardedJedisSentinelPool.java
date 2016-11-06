@@ -145,11 +145,7 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
     @Deprecated
     public void returnBrokenResource(final ShardedJedis resource) {
         if (resource != null) {
-            try{
-                returnBrokenResourceObject(resource);
-            }catch(Exception e){
-                e.printStackTrace();
-            }
+            returnBrokenResourceObject(resource);
         }
     }
 
@@ -163,12 +159,8 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
     @Deprecated
     public void returnResource(final ShardedJedis resource) {
         if (resource != null) {
-            try{
-                resource.resetState();
-                returnResourceObject(resource);
-            }catch(Exception e){
-                e.printStackTrace();
-            }
+            resource.resetState();
+            returnResourceObject(resource);
         }
     }
 
