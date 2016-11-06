@@ -58,40 +58,49 @@ public class SpringTest {
 
     public static void set(String key, String value) {
         ShardedJedis resource = null;
+        boolean broken = false;
         try {
             resource = pool.getResource();
             resource.set(key, value);
         } catch (Exception e) {
+            broken = true;
             e.printStackTrace();
         } finally {
-            close(resource);
+            close(resource,broken);
         }
     }
 
     public static String get(String key) {
         ShardedJedis resource = null;
         String string = null;
+        boolean broken = false;
         try {
             resource = pool.getResource();
             string = resource.get(key);
         } catch (Exception e) {
+            broken = true;
             e.printStackTrace();
         } finally {
-            close(resource);
+            close(resource,broken);
         }
         return string;
     }
 
     /**
-     * 注意，此方法需要try-catch，因为当master发生变更后，监控线程会重新初始化连接池中的连接，造成resource.close抛错
+     * 注意，此方法需要try-catch，因为当master发生变更后，监控线程会重新初始化连接池中的连接，造成抛错
      */
-    public static void close(ShardedJedis resource) {
+    public static void close(ShardedJedis resource, boolean broken) {
         if (null == resource) {
             return;
         }
         try {
-            resource.close();
+            if(broken){
+                pool.returnBrokenResource(resource);
+            }else{
+                pool.returnResource(resource);
+            }
         } catch (Exception e) {
+            resource.disconnect();
             e.printStackTrace();
         }
     }
