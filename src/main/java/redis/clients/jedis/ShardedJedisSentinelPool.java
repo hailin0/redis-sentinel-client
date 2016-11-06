@@ -122,10 +122,16 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
      * 获取ShardedJedis客户端
      * 
      */
-    @Override
+    @Override 
     public ShardedJedis getResource() {
-        ShardedJedis jedis = super.getResource();
-        jedis.setDataSource(this);
+        ShardedJedis jedis = null;
+        try{
+            jedis = super.getResource();
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+        if(jedis!=null)
+            jedis.setDataSource(this);
         return jedis;
     }
 
@@ -139,7 +145,11 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
     @Deprecated
     public void returnBrokenResource(final ShardedJedis resource) {
         if (resource != null) {
-            returnBrokenResourceObject(resource);
+            try{
+                returnBrokenResourceObject(resource);
+            }catch(Exception e){
+                e.printStackTrace();
+            }
         }
     }
 
@@ -153,8 +163,12 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
     @Deprecated
     public void returnResource(final ShardedJedis resource) {
         if (resource != null) {
-            resource.resetState();
-            returnResourceObject(resource);
+            try{
+                resource.resetState();
+                returnResourceObject(resource);
+            }catch(Exception e){
+                e.printStackTrace();
+            }
         }
     }
 
@@ -279,9 +293,10 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
                     final HostAndPort hap = toHostAndPort(Arrays.asList(sentinel.split(":")));
 
                     log.fine("Connecting to Sentinel " + hap);
-
+                    
+                    Jedis jedis = null;
                     try {
-                        Jedis jedis = new Jedis(hap.getHost(), hap.getPort());
+                        jedis = new Jedis(hap.getHost(), hap.getPort());
                         // 从sentinel获取masterName当前master-host地址
                         List<String> masterAddr = jedis.sentinelGetMasterAddrByName(masterName);
                         // connected to sentinel...
@@ -304,6 +319,14 @@ public class ShardedJedisSentinelPool extends Pool<ShardedJedis> {
                     } catch (JedisConnectionException e) {
                         log.warning("Cannot connect to sentinel running @ " + hap
                                 + ". Trying next one.");
+                    }finally{
+                        try{
+                            if(jedis != null){
+                                jedis.disconnect();
+                            }
+                        }catch(Exception e1){
+                            e1.printStackTrace();
+                        }
                     }
                 }
 
